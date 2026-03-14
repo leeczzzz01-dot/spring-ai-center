@@ -6,14 +6,16 @@ import agent.admin.api.service.UserService;
 import agent.admin.api.utils.TokenUtil;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
 @Service
-public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
-
+public class UserServiceImpl implements UserService {
+    @Autowired
+    private UserMapper userMapper;
     @Override
     public String login(User loginUser) {
         if (loginUser == null || loginUser.getUsername() == null || loginUser.getPassword() == null) {
@@ -23,7 +25,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("username", loginUser.getUsername())
                 .eq("password", loginUser.getPassword());
-        User user = baseMapper.selectOne(queryWrapper);
+        User user = userMapper.selectOne(queryWrapper);
 
         if (user == null) {
             throw new RuntimeException("用户名或密码不正确");
@@ -46,12 +48,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 校验名字是否重复
         QueryWrapper<User> queryWrapper = new QueryWrapper<>();
         queryWrapper.eq("username", newUser.getUsername());
-        if (baseMapper.selectCount(queryWrapper) > 0) {
+        if (userMapper.selectCount(queryWrapper) > 0) {
             throw new RuntimeException("该用户名已被注册");
         }
 
         newUser.setCreatedAt(LocalDateTime.now());
-        baseMapper.insert(newUser);
+        userMapper.insert(newUser);
     }
 
     @Override
@@ -59,6 +61,6 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         if (!"admin".equals(operatorUsername)) {
             throw new RuntimeException("当前账号无权查看用户列表");
         }
-        return baseMapper.selectList(null);
+        return userMapper.selectList(null);
     }
 }

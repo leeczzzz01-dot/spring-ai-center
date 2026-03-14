@@ -1,14 +1,13 @@
 package agent.admin.api.service;
 
 import agent.admin.api.pojo.po.User;
-import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
 
 /**
  * @description: 用户管理 Service
  */
-public interface UserService extends IService<User> {
+public interface UserService{
 
     /**
      * 校验登录获取 Token
