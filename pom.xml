@@ -11,6 +11,7 @@
   <url>http://maven.apache.org</url>
   <modules>
     <module>spring-ai-api</module>
+      <module>spring-ai-adminCemter</module>
   </modules>
 
   <parent>

@@ -7,35 +7,21 @@
         <version>1.0-SNAPSHOT</version>
     </parent>
 
-    <groupId>agent.ai.api</groupId>
-    <artifactId>spring-ai-api</artifactId>
+    <groupId>agent.ai.api.adminCenter</groupId>
+    <artifactId>spring-ai-adminCemter</artifactId>
     <packaging>jar</packaging>
 
-    <name>spring-ai-api</name>
+    <name>spring-ai-adminCemter</name>
     <url>http://maven.apache.org</url>
 
     <properties>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
     </properties>
 
-
-
     <dependencies>
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-web</artifactId>
-        </dependency>
-
-        <!--google-->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-google-genai</artifactId>
-        </dependency>
-
-        <!--智谱-->
-        <dependency>
-            <groupId>org.springframework.ai</groupId>
-            <artifactId>spring-ai-starter-model-zhipuai</artifactId>
         </dependency>
 
         <dependency>
@@ -60,11 +46,6 @@
             <groupId>org.projectlombok</groupId>
             <artifactId>lombok</artifactId>
             <optional>true</optional>
-        </dependency>
-        <dependency>
-            <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-test</artifactId>
-            <scope>test</scope>
         </dependency>
     </dependencies>
 </project>

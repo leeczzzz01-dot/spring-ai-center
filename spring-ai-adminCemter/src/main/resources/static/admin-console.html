@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>用户管理中心</title>
+    <!-- 引入 Vue 和 ElementPlus (简易引入CDN) -->
+    <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+    <link rel="stylesheet" href="https://unpkg.com/element-plus/dist/index.css" />
+    <script src="https://unpkg.com/element-plus"></script>
+    <script src="https://unpkg.com/@element-plus/icons-vue"></script>
+    <style>
+        body { font-family: "Helvetica Neue",Helvetica,"PingFang SC","Hiragino Sans GB","Microsoft YaHei",Arial,sans-serif; margin: 0; padding: 20px; background-color: #f5f7fa;}
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
+        .header-action { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
+        .login-box { max-width: 400px; margin: 100px auto; background: #fff; padding: 30px; border-radius: 8px; box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1); }
+    </style>
+</head>
+<body>
+<div id="app">
+
+    <!-- 登录模块 -->
+    <div v-if="!isLogged" class="login-box">
+        <h2 style="text-align: center; margin-bottom: 20px;">系统登录</h2>
+        <el-form :model="loginForm" label-width="60px">
+            <el-form-item label="账号">
+                <el-input v-model="loginForm.username"></el-input>
+            </el-form-item>
+            <el-form-item label="密码">
+                <el-input type="password" v-model="loginForm.password" @keyup.enter="handleLogin"></el-input>
+            </el-form-item>
+            <el-button type="primary" style="width: 100%" @click="handleLogin" :loading="logging">登 录</el-button>
+        </el-form>
+    </div>
+
+    <!-- 管理模块 -->
+    <div v-else class="container">
+        <div class="header-action">
+            <h2>用户管理 (Admin控制台)</h2>
+            <div>
+                <el-button type="primary" @click="dialogVisible = true"> + 添加用户 </el-button>
+                <el-button type="info" plain @click="logout" style="margin-left: 10px;"> 退出登录 </el-button>
+            </div>
+        </div>
+
+        <el-table :data="userList" border style="width: 100%" v-loading="loading">
+            <el-table-column prop="id" label="ID" width="80"></el-table-column>
+            <el-table-column prop="username" label="登录名"></el-table-column>
+            <el-table-column prop="nickname" label="昵称"></el-table-column>
+            <el-table-column prop="createdAt" label="创建时间"></el-table-column>
+        </el-table>
+
+        <!-- 添加用户弹窗 -->
+        <el-dialog title="添加新用户" v-model="dialogVisible" width="400px">
+            <el-form :model="addForm" :rules="rules" ref="addFormRef" label-width="80px">
+                <el-form-item label="用户名" prop="username">
+                    <el-input v-model="addForm.username"></el-input>
+                </el-form-item>
+                <el-form-item label="密码" prop="password">
+                    <el-input type="password" v-model="addForm.password"></el-input>
+                </el-form-item>
+                <el-form-item label="昵称">
+                    <el-input v-model="addForm.nickname"></el-input>
+                </el-form-item>
+            </el-form>
+            <template #footer>
+                <el-button @click="dialogVisible = false">取消</el-button>
+                <el-button type="primary" @click="submitAdd" :loading="adding">确认添加</el-button>
+            </template>
+        </el-dialog>
+    </div>
+
+</div>
+
+<script>
+    const { createApp, ref, reactive, onMounted } = Vue;
+
+    const App = {
+        setup() {
+            const isLogged = ref(false);
+            const token = ref(localStorage.getItem('admin_token') || '');
+            const logging = ref(false);
+            const loginForm = reactive({ username: '', password: '' });
+            
+            const loading = ref(false);
+            const userList = ref([]);
+            
+            const dialogVisible = ref(false);
+            const adding = ref(false);
+            const addFormRef = ref(null);
+            const addForm = reactive({ username: '', password: '', nickname: '' });
+            const rules = {
+                username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
+                password: [{ required: true, message: '请输入初始密码', trigger: 'blur' }]
+            };
+
+            // 拦截与请求方法简封
+            const fetchApi = async (url, options = {}) => {
+                const headers = {
+                    'Content-Type': 'application/json',
+                    'Authorization': token.value
+                };
+                const res = await fetch(url, { ...options, headers });
+                const json = await res.json();
+                if(json.code === 401 || json.code === 403) {
+                    ElementPlus.ElMessage.error('凭据已失效，请重新登录');
+                    logout();
+                    throw new Error('Unauthorized');
+                }
+                return json;
+            };
+
+            const handleLogin = async () => {
+                if(!loginForm.username || !loginForm.password) {
+                    return ElementPlus.ElMessage.warning('账号密码不能为空');
+                }
+                logging.value = true;
+                try {
+                    const res = await fetchApi('/api/login', {
+                        method: 'POST',
+                        body: JSON.stringify(loginForm)
+                    });
+                    if(res.code === 200) {
+                        token.value = res.data;
+                        localStorage.setItem('admin_token', token.value);
+                        isLogged.value = true;
+                        ElementPlus.ElMessage.success('登录成功');
+                        fetchUserList();
+                    } else {
+                        ElementPlus.ElMessage.error(res.msg || '登录失败');
+                    }
+                } catch(e) { console.error(e) }
+                logging.value = false;
+            };
+
+            const logout = () => {
+                localStorage.removeItem('admin_token');
+                token.value = '';
+                isLogged.value = false;
+                userList.value = [];
+            };
+
+            const fetchUserList = async () => {
+                loading.value = true;
+                try {
+                    const res = await fetchApi('/api/user/list');
+                    if(res.code === 200) {
+                        userList.value = res.data;
+                    } else {
+                        ElementPlus.ElMessage.error(res.msg);
+                    }
+                } catch(e) {}
+                loading.value = false;
+            };
+
+            const submitAdd = () => {
+                addFormRef.value.validate(async (valid) => {
+                    if (valid) {
+                        adding.value = true;
+                        try {
+                            const res = await fetchApi('/api/user/add', {
+                                method: 'POST',
+                                body: JSON.stringify(addForm)
+                            });
+                            if(res.code === 200) {
+                                ElementPlus.ElMessage.success('添加成功');
+                                dialogVisible.value = false;
+                                addForm.username = ''; addForm.password = ''; addForm.nickname = '';
+                                fetchUserList(); // 刷新
+                            } else {
+                                ElementPlus.ElMessage.error(res.msg || '添加失败');
+                            }
+                        } catch(e){}
+                        adding.value = false;
+                    }
+                });
+            };
+
+            onMounted(() => {
+                if(token.value) {
+                    isLogged.value = true;
+                    fetchUserList();
+                }
+            });
+
+            return {
+                isLogged, loginForm, handleLogin, logging, logout,
+                userList, loading, dialogVisible, 
+                addForm, addFormRef, rules, submitAdd, adding
+            }
+        }
+    };
+
+    const app = createApp(App);
+    app.use(ElementPlus);
+    app.mount('#app');
+</script>
+</body>
+</html>
