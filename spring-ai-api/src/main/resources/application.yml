@@ -1,0 +1,20 @@
+
+spring:
+  ai:
+    chat:
+      client:
+        # 核心：关闭默认的单例 ChatClient 自动构建
+        enabled: false
+    google:
+      genai:
+        api-key: AIzaSyDGdXgfICtFtelVFTY-MZzQEQGOnNIx7Qs
+        chat:
+          options:
+            model: gemini-2.5-flash
+    zhipuai:
+      api-key: 35065ea622b346638000955e6dd1687c.dwJoP6AqQGaS3y44
+      chat:
+        options:
+          model: glm-4
+server:
+  port: 8081

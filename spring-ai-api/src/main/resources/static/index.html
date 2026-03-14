@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>我的 AI</title>
+    <style>
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background-color: #f4f7f6; display: flex; justify-content: center; padding-top: 50px; }
+        .chat-container { width: 600px; background: white; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); padding: 20px; display: flex; flex-direction: column; gap: 15px; }
+        .controls { display: flex; gap: 10px; }
+        select, input, button { padding: 10px; border: 1px solid #ccc; border-radius: 5px; font-size: 14px; }
+        select { font-weight: bold; color: #333; cursor: pointer; }
+        input { flex: 1; }
+        button { background-color: #007bff; color: white; border: none; cursor: pointer; transition: 0.3s; }
+        button:hover { background-color: #0056b3; }
+        button:disabled { background-color: #cccccc; cursor: not-allowed; }
+        .chat-box { flex: 1; min-height: 300px; max-height: 400px; overflow-y: auto; background: #f9f9f9; padding: 15px; border-radius: 5px; border: 1px solid #eee; white-space: pre-wrap; line-height: 1.6; }
+        .bot-msg { color: #333; }
+        .user-msg { color: #007bff; font-weight: bold; margin-bottom: 10px; border-bottom: 1px dashed #ccc; padding-bottom: 5px;}
+    </style>
+</head>
+<body>
+
+<div class="chat-container">
+    <h2 style="margin: 0; color: #333; text-align: center;">🤖 多模型 AI 助手</h2>
+
+    <div id="chatBox" class="chat-box"></div>
+
+    <div class="controls">
+        <select id="modelSelect">
+            <option value="google">Google Gemini 2.5</option>
+            <option value="zhipu">智谱 GLM-4</option>
+        </select>
+
+        <input type="text" id="messageInput" placeholder="输入你的问题，按回车发送..." onkeypress="if(event.key === 'Enter') sendMessage()">
+        <button id="sendBtn" onclick="sendMessage()">发送</button>
+    </div>
+</div>
+
+<script>
+    async function sendMessage() {
+        const input = document.getElementById('messageInput');
+        const sendBtn = document.getElementById('sendBtn');
+        const chatBox = document.getElementById('chatBox');
+        const modelSelect = document.getElementById('modelSelect');
+
+        const message = input.value.trim();
+        const modelName = modelSelect.value; // 获取当前选中的模型类型
+
+        if (!message) return;
+
+        // 1. 在屏幕上显示用户发的消息
+        chatBox.innerHTML += `<div class="user-msg">我 (${modelName}): ${message}</div><div class="bot-msg"></div><br>`;
+        input.value = '';
+        sendBtn.disabled = true; // 发送中禁用按钮
+
+        // 自动滚动到最底部
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // 找到最新生成的那个 AI 回复框
+        const botMsgDivs = chatBox.getElementsByClassName('bot-msg');
+        const currentBotDiv = botMsgDivs[botMsgDivs.length - 1];
+
+        try {
+            // 2. 发起请求，注意端口号要和你的 Spring Boot 一致 (默认 8080，你是 8081)
+            const response = await fetch(`http://localhost:8081/api/ai/stream?modelName=${modelName}&message=${encodeURIComponent(message)}`);
+
+            if (!response.ok) throw new Error("网络请求失败");
+
+            // 3. 核心魔法：解析流式数据
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                // Spring 返回的 SSE 格式通常是 "data: 你的文字\n\n"，这里用正则把多余的格式字符去掉
+                const text = chunk.replace(/^data:/gm, '').replace(/\n\n$/gm, '');
+
+                // 像打字机一样追加文字
+                currentBotDiv.innerHTML += text;
+
+                // 保持滚动条在最下面
+                chatBox.scrollTop = chatBox.scrollHeight;
+            }
+        } catch (error) {
+            currentBotDiv.innerHTML += `<span style="color: red;">[连接后端失败，请检查 Spring Boot 是否启动]</span>`;
+            console.error(error);
+        } finally {
+            sendBtn.disabled = false; // 恢复按钮
+        }
+    }
+</script>
+
+</body>
+</html>
