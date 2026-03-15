@@ -25,9 +25,9 @@ public class ChatMessage {
     private Long sessionId;
 
     /**
-     * 角色标识（如 'user', 'assistant', 'system' 等）
+     * 角色标识（1:user, 2:assistant, 3:system, 4:tool）
      */
-    private String role;
+    private Integer role;
 
     /**
      * 消息的主要内容文本
@@ -35,12 +35,22 @@ public class ChatMessage {
     private String content;
 
     /**
-     * 此次消息产生的 Token 消耗量
+     * 提问消耗的 Token 数 (Input)
      */
-    private Integer tokenUsage;
+    private Integer promptTokens;
 
     /**
-     * 扩展元数据（例如模型耗时、附加参数等，存为JSON字符串，可用TypeHandler映射对象）
+     * 回答生成的 Token 数 (Output)
+     */
+    private Integer completionTokens;
+
+    /**
+     * 总计消耗的 Token 数
+     */
+    private Integer totalTokens;
+
+    /**
+     * 扩展元数据（JSON 格式）
      */
     private String metadata;
 

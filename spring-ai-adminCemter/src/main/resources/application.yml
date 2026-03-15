@@ -4,9 +4,9 @@ server:
 spring:
   datasource:
     # 假设使用以下配置连上本地 MySQL
-    url: jdbc:mysql://127.0.0.1:3306/ai_center?useUnicode=true&characterEncoding=UTF-8&serverTimezone=GMT%2B8
+    url: jdbc:mysql://117.72.145.119:3306/ai-center?useUnicode=true&characterEncoding=UTF-8&serverTimezone=GMT%2B8
     username: root
-    password: password
+    password: h1.c0000
     driver-class-name: com.mysql.cj.jdbc.Driver
 
 mybatis-plus:

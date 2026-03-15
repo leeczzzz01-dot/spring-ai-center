@@ -2,12 +2,12 @@ package agent.ai.api.service.impl;
 
 import agent.ai.api.service.AiStrategyService;
 import org.springframework.ai.chat.client.ChatClient;
+import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
 import org.springframework.ai.chat.metadata.ChatResponseMetadata;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.model.Generation;
-import org.springframework.ai.chat.prompt.PromptTemplate;
-import org.springframework.ai.template.st.StTemplateRenderer;
+
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Flux;
@@ -50,6 +50,8 @@ public class AiStrategyServiceImpl implements AiStrategyService {
         // 3. 发起调用
         Flux<ChatResponse> chatResponseFlux = aiClient.prompt()
                 .user(message)
+                .system("大傻逼")
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, "12345"))
                 .stream()
                 .chatResponse();
 
