@@ -4,11 +4,8 @@ import agent.ai.api.advisor.AgentChatMemoryAdvisor;
 import agent.ai.api.repository.DBChatMemoryRepository;
 import agent.ai.api.service.impl.AIChatMemoryByDBService;
 import org.springframework.ai.chat.client.ChatClient;
-import org.springframework.ai.chat.client.advisor.MessageChatMemoryAdvisor;
-import org.springframework.ai.chat.client.advisor.PromptChatMemoryAdvisor;
 import org.springframework.ai.chat.client.advisor.SimpleLoggerAdvisor;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.memory.MessageWindowChatMemory;
 import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.ai.google.genai.GoogleGenAiChatModel;
@@ -24,9 +21,10 @@ public class AiConfig {
         你是一个助手，请回答用户问题。
     """;
 
+    private static final String DEFAULT_SYSTEM_TEXT_PROMPT_TEXT = """
+        <instructions>
+        """;
     private static final String SYSTEM_MEMORY_PROMPT_TEMPLATE_TEXT = """
-            <instructions>
-
             使用“记忆”部分中的对话记忆来提供准确的答案。
             ---------------------
             记忆:
@@ -66,9 +64,9 @@ public class AiConfig {
                         new SimpleLoggerAdvisor(),
                         // 系统提示词
                         // 聊天记忆
-                        AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemMemoryPromptTemplate()).order(-100).build(),
+                        AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemMemoryPromptTemplate()).order(-100).build()
                         // 用户信息
-                        AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemUserInfoPromptTemplate()).order(-100).build()
+                 //       AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemUserInfoPromptTemplate()).order(-100).build()
                 )
                 .build();
     }

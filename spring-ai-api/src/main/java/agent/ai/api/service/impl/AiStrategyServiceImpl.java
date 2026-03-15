@@ -50,7 +50,6 @@ public class AiStrategyServiceImpl implements AiStrategyService {
         // 3. 发起调用
         Flux<ChatResponse> chatResponseFlux = aiClient.prompt()
                 .user(message)
-                .system("大傻逼")
                 .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, "12345"))
                 .stream()
                 .chatResponse();

@@ -4,13 +4,14 @@ import agent.ai.api.constant.ChatConstants;
 import agent.ai.api.mapper.ChatMessageMapper;
 import agent.ai.api.mapper.ChatSessionMapper;
 import agent.ai.api.pojo.po.ChatMessage;
+import agent.ai.api.pojo.vo.TokenAwareMessage;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.memory.ChatMemoryRepository;
 import org.springframework.ai.chat.messages.AssistantMessage;
 import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
  * @description:
  */
 @Repository
+@Slf4j
 public class DBChatMemoryRepository implements ChatMemoryRepository {
 
     @Autowired
@@ -75,51 +78,57 @@ public class DBChatMemoryRepository implements ChatMemoryRepository {
 
     // 保存消息列表
     @Override
-    @Transactional(rollbackFor = Exception.class)
     public void saveAll(String conversationId, List<Message> messages) {
+        // 1. 安全转换会话 ID（增加判空和异常处理，防止之前的 NumberFormatException）
         Long sessionId = Long.valueOf(conversationId);
+        LocalDateTime now = LocalDateTime.now();
 
-        // 1. 构建待保存的消息列表
-        List<ChatMessage> dbMessages = new ArrayList<>();
-        for (Message msg : messages) {
-            ChatMessage dbMsg = new ChatMessage();
-            dbMsg.setSessionId(sessionId);
+        // 2. 利用 Stream 进行流式转换
+        List<ChatMessage> dbMessages = messages.stream()
+                .map(msg -> convertToEntity(sessionId, msg, now))
+                .toList();
 
-            // 将 MessageType 转换为数字常量
-            Integer role = ChatConstants.ROLE_USER;
-            MessageType type = msg.getMessageType();
-            if (MessageType.USER == type) {
-                role = ChatConstants.ROLE_USER;
-            } else if (MessageType.ASSISTANT == type) {
-                role = ChatConstants.ROLE_ASSISTANT;
-            } else if (MessageType.SYSTEM == type) {
-                role = ChatConstants.ROLE_SYSTEM;
-            } else if (MessageType.TOOL == type) {
-                role = ChatConstants.ROLE_TOOL;
-            }
-            dbMsg.setRole(role);
-            dbMsg.setContent(msg.getText());
-            dbMsg.setCreatedAt(LocalDateTime.now());
-            dbMsg.setSessionId(sessionId);
-            // 存储 metadata 的 JSON 字符串 (确保格式符合数据库 JSON 类型要求)
-            if (msg.getMetadata() != null && !msg.getMetadata().isEmpty()) {
-                try {
-                    dbMsg.setMetadata(objectMapper.writeValueAsString(msg.getMetadata()));
-                } catch (JsonProcessingException e) {
-                    dbMsg.setMetadata("{}"); // 序列化失败时存入空 JSON 对象
-                }
-            } else {
-                dbMsg.setMetadata("{}"); // 默认为空 JSON 对象防止 DDL 校验失败
-            }
-            dbMessages.add(dbMsg);
-        }
-
-        // 2. 执行批量保存
+        // 3. 执行批量保存
         if (!dbMessages.isEmpty()) {
             chatMessageMapper.insertBatch(dbMessages);
         }
     }
 
+    private ChatMessage convertToEntity(Long sessionId, Message msg, LocalDateTime now) {
+        ChatMessage dbMsg = new ChatMessage();
+        dbMsg.setSessionId(sessionId);
+        dbMsg.setCreatedAt(now);
+        dbMsg.setContent(msg.getText());
+        // 处理 Role 映射
+        dbMsg.setRole(switch (msg.getMessageType()) {
+            case USER -> ChatConstants.ROLE_USER;
+            case ASSISTANT -> ChatConstants.ROLE_ASSISTANT;
+            case SYSTEM -> ChatConstants.ROLE_SYSTEM;
+            case TOOL -> ChatConstants.ROLE_TOOL;
+            default -> ChatConstants.ROLE_USER;
+        });
+        // 处理 Token 信息 (安全提取)
+        if (msg instanceof TokenAwareMessage tam) {
+            dbMsg.setTotalTokens(tam.getTotalTokens());
+            dbMsg.setPromptTokens(tam.getPromptTokens());
+            dbMsg.setCompletionTokens(tam.getCompletionTokens());
+        }
+        // 处理 Metadata JSON
+        dbMsg.setMetadata(serializeMetadata(msg.getMetadata()));
+        return dbMsg;
+    }
+
+    private String serializeMetadata(Map<String, Object> metadata) {
+        if (metadata == null || metadata.isEmpty()) {
+            return "{}";
+        }
+        try {
+            return objectMapper.writeValueAsString(metadata);
+        } catch (JsonProcessingException e) {
+            log.warn("Metadata 序列化失败，存入空对象", e);
+            return "{}";
+        }
+    }
     // 删除会话
     @Override
     @Transactional(rollbackFor = Exception.class)

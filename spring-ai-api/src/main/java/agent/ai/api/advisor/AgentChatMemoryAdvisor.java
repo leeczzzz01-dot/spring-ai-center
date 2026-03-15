@@ -27,20 +27,10 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 	private static final String CONTEXT_USER_QUESTION_KEY = "CONTEXT_USER_QUESTION_KEY";
 
 	private static final PromptTemplate DEFAULT_SYSTEM_PROMPT_TEMPLATE = new PromptTemplate("""
-			{instructions}
-
-			使用memory部分中的对话记忆用来丰富你和用户对话的上下文。
-
 			---------------------
 			memory:
 			{memory}
 			---------------------
-			
-			你根据userInfo对用户进行一个基础认定
-			userInfo:
-			----------------
-			<userInfo>
-			----------------
 			""");
 
 	private final PromptTemplate systemPromptTemplate;
@@ -94,24 +84,24 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 				.collect(Collectors.joining(System.lineSeparator()));
 
 		// 3. 装填 SystemMessage DefaultChatClientUtils.toChatClientRequest 将systemTest 这些转换成了SystemMessage
-		// 此处不可省略
-		SystemMessage systemMessage = chatClientRequest.prompt().getSystemMessage();
-		String augmentedSystemText = this.systemPromptTemplate
-				.render(Map.of("instructions", systemMessage.getText(), "memory", memory));
-		// 4. 将数据拼接搭配 prompt 中
-		ChatClientRequest processedChatClientRequest = chatClientRequest.mutate()
+		String augmentedSystemText = this.systemPromptTemplate.render(Map.of("memory", memory));
+		// 5. 将数据存放到等待 token 数据获取到后进行统一操作
+		UserMessage userMessage = chatClientRequest.prompt().getUserMessage();
+		String questionText = (userMessage != null) ? userMessage.getText() : "";
+
+		// 5. 提前把问题塞进原始的 context 里
+		// 这样接下来的 mutate() 就会自动把这个带有问题的 context 复制到新对象中
+		chatClientRequest.context().put(CONTEXT_USER_QUESTION_KEY, questionText);
+
+		// 6. 统一生成最终的请求对象，并直接 return
+		return chatClientRequest.mutate()
 				.prompt(chatClientRequest.prompt().augmentSystemMessage(augmentedSystemText))
 				.build();
-
-		// 5. 将数据存放到等待 token 数据获取到后进行统一操作
-		UserMessage userMessage = processedChatClientRequest.prompt().getUserMessage();
-
-		chatClientRequest.context().put(CONTEXT_USER_QUESTION_KEY, userMessage.getText());
-		return processedChatClientRequest;
 	}
 
 	@Override
 	public ChatClientResponse after(ChatClientResponse chatClientResponse, AdvisorChain advisorChain) {
+		String conversationId = this.getConversationId(chatClientResponse.context(), this.defaultConversationId);
 		// 1. 获取用户问题与响应对象
 		String userQuestion = (String) chatClientResponse.context().getOrDefault(CONTEXT_USER_QUESTION_KEY, "");
 		ChatResponse chatResponse = chatClientResponse.chatResponse();
@@ -138,8 +128,7 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 						.forEach(insertMessages::add);
 
 				// D. 批量打印日志
-				log.info("会话: {} | 提示词 Token: {} | 回答 Token: {} | 总消耗: {}",
-						defaultConversationId, prompt, completion, total);
+				log.info("会话: {} | 提示词 Token: {} | 回答 Token: {} | 总消耗: {}", conversationId, prompt, completion, total);
 			}
 		} else {
 			log.warn("用户问：{}，AI 未返回任何回答", userQuestion);
@@ -147,7 +136,7 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 
 		// 4. 执行持久化
 		if (!insertMessages.isEmpty()) {
-			this.chatMemory.add(this.defaultConversationId, insertMessages);
+			this.chatMemory.add(conversationId, insertMessages);
 		}
 
 		return chatClientResponse;
