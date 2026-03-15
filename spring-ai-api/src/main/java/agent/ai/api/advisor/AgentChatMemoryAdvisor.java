@@ -1,15 +1,15 @@
 package agent.ai.api.advisor;
 
+import agent.ai.api.pojo.vo.TokenAwareMessage;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClientMessageAggregator;
 import org.springframework.ai.chat.client.ChatClientRequest;
 import org.springframework.ai.chat.client.ChatClientResponse;
 import org.springframework.ai.chat.client.advisor.api.*;
 import org.springframework.ai.chat.memory.ChatMemory;
-import org.springframework.ai.chat.messages.Message;
-import org.springframework.ai.chat.messages.MessageType;
-import org.springframework.ai.chat.messages.SystemMessage;
-import org.springframework.ai.chat.messages.UserMessage;
+import org.springframework.ai.chat.messages.*;
+import org.springframework.ai.chat.metadata.Usage;
+import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.PromptTemplate;
 import org.springframework.util.Assert;
 import reactor.core.publisher.Flux;
@@ -18,6 +18,7 @@ import reactor.core.scheduler.Scheduler;
 
 import java.util.*;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 
 // 完成记忆封装
@@ -28,12 +29,18 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 	private static final PromptTemplate DEFAULT_SYSTEM_PROMPT_TEMPLATE = new PromptTemplate("""
 			{instructions}
 
-			使用“记忆”部分中的对话记忆来提供准确的答案。
-			
+			使用memory部分中的对话记忆用来丰富你和用户对话的上下文。
+
 			---------------------
-			记忆:
+			memory:
 			{memory}
 			---------------------
+			
+			你根据userInfo对用户进行一个基础认定
+			userInfo:
+			----------------
+			<userInfo>
+			----------------
 			""");
 
 	private final PromptTemplate systemPromptTemplate;
@@ -91,10 +98,6 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 		SystemMessage systemMessage = chatClientRequest.prompt().getSystemMessage();
 		String augmentedSystemText = this.systemPromptTemplate
 				.render(Map.of("instructions", systemMessage.getText(), "memory", memory));
-
-		// 4. 填充问题
-		String question = this.systemPromptTemplate
-				.render(Map.of("instructions", systemMessage.getText(), "memory", memory));
 		// 4. 将数据拼接搭配 prompt 中
 		ChatClientRequest processedChatClientRequest = chatClientRequest.mutate()
 				.prompt(chatClientRequest.prompt().augmentSystemMessage(augmentedSystemText))
@@ -109,31 +112,43 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 
 	@Override
 	public ChatClientResponse after(ChatClientResponse chatClientResponse, AdvisorChain advisorChain) {
-		// 1. 从 context 中取出 before 阶段存入的用户问题
-		String userQuestion = (String) chatClientResponse.context().get(CONTEXT_USER_QUESTION_KEY);
+		// 1. 获取用户问题与响应对象
+		String userQuestion = (String) chatClientResponse.context().getOrDefault(CONTEXT_USER_QUESTION_KEY, "");
+		ChatResponse chatResponse = chatClientResponse.chatResponse();
 
+		// 2. 预准备待存消息容器
+		List<Message> insertMessages = new ArrayList<>();
 
-		// 2. 获取 AI 聚合后的完整回复
-		List<Message> messages = new ArrayList<>();
-		if (chatClientResponse != null && chatClientResponse.chatResponse() != null) {
-			var results = chatClientResponse.chatResponse().getResults();
+		// 3. 核心逻辑：当且仅当存在有效回复时处理
+		if (chatResponse != null && !chatResponse.getResults().isEmpty()) {
+			// A. 提取 Usage
+			Usage usage = chatResponse.getMetadata().getUsage();
 
-			// 2. 只有有结果时才处理
-			if (results != null && !results.isEmpty()) {
-				messages = results.stream()
-						.map(g -> (Message) g.getOutput())
-						.toList(); // Java 16+ 简写
+			if (usage != null) {
+				Integer prompt = usage.getPromptTokens();
+				Integer completion = usage.getCompletionTokens();
+				Integer total = usage.getTotalTokens();
+
+				// B. 构建 User 消息并封装 Token
+				insertMessages.add(new TokenAwareMessage(new UserMessage(userQuestion), prompt, completion, total));
+
+				// C. 批量转化并封装 Assistant 消息
+				chatResponse.getResults().stream()
+						.map(generation -> new TokenAwareMessage(generation.getOutput(), prompt, completion, total))
+						.forEach(insertMessages::add);
+
+				// D. 批量打印日志
+				log.info("会话: {} | 提示词 Token: {} | 回答 Token: {} | 总消耗: {}",
+						defaultConversationId, prompt, completion, total);
 			}
+		} else {
+			log.warn("用户问：{}，AI 未返回任何回答", userQuestion);
 		}
-		// 3. 在这里执行“统一操作”
 
-		if (!messages.isEmpty()) {
-			this.chatMemory.add(this.getConversationId(chatClientResponse.context(), this.defaultConversationId), messages);
+		// 4. 执行持久化
+		if (!insertMessages.isEmpty()) {
+			this.chatMemory.add(this.defaultConversationId, insertMessages);
 		}
-		log.info("用户问：{}，AI答：{}", userQuestion, messages);
-		// 比如：一起存入数据库
-		// List<Message> messagesToSave = List.of(new UserMessage(userQuestion), new AssistantMessage(assistantReply));
-		// this.chatMemory.add(conversationId, messagesToSave);
 
 		return chatClientResponse;
 	}
@@ -216,8 +231,7 @@ public final class AgentChatMemoryAdvisor implements BaseChatMemoryAdvisor {
 		 * @return the advisor
 		 */
 		public AgentChatMemoryAdvisor build() {
-			return new AgentChatMemoryAdvisor(this.chatMemory, this.conversationId, this.order, this.scheduler,
-					this.systemPromptTemplate);
+			return new AgentChatMemoryAdvisor(this.chatMemory, this.conversationId, this.order, this.scheduler, this.systemPromptTemplate);
 		}
 	}
 }
