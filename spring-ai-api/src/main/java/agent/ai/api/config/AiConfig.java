@@ -1,6 +1,7 @@
 package agent.ai.api.config;
 
 import agent.ai.api.advisor.AgentChatMemoryAdvisor;
+import agent.ai.api.advisor.UserInfoAdvisor;
 import agent.ai.api.repository.DBChatMemoryRepository;
 import agent.ai.api.service.impl.AIChatMemoryByDBService;
 import org.springframework.ai.chat.client.ChatClient;
@@ -64,9 +65,9 @@ public class AiConfig {
                         new SimpleLoggerAdvisor(),
                         // 系统提示词
                         // 聊天记忆
-                        AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemMemoryPromptTemplate()).order(-100).build()
+                        AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemMemoryPromptTemplate()).order(-100).build(),
                         // 用户信息
-                 //       AgentChatMemoryAdvisor.builder(chatMemory).systemPromptTemplate(getSystemUserInfoPromptTemplate()).order(-100).build()
+                        UserInfoAdvisor.builder().systemUserPromptTemplate(getSystemUserInfoPromptTemplate()).order(-99).build()
                 )
                 .build();
     }

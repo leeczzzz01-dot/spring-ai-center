@@ -1,0 +1,33 @@
+spring:
+  ai:
+    chat:
+      client:
+        # 核心：关闭默认的单例 ChatClient 自动构建
+        enabled: false
+    google:
+      genai:
+        # 【私密配置】请在本地替换为真实的 Google GenAI API Key
+        api-key: YOUR_GOOGLE_API_KEY_HERE
+        chat:
+          options:
+            model: gemini-2.5-flash
+    zhipuai:
+      # 【私密配置】请在本地替换为真实的智谱 AI API Key
+      api-key: YOUR_ZHIPU_API_KEY_HERE
+      chat:
+        options:
+          model: glm-4
+  datasource:
+    # 【私密配置】请将 localhost 替换为真实的数据库服务器 IP 或域名
+    url: jdbc:mysql://localhost:3306/ai-center?useUnicode=true&characterEncoding=UTF-8&serverTimezone=GMT%2B8
+    username: root
+    # 【私密配置】请在本地替换为真实的数据库密码
+    password: YOUR_DB_PASSWORD_HERE
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+mybatis-plus:
+  mapper-locations: classpath*:/mapper/**/*.xml
+  configuration:
+    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+server:
+  port: 8081

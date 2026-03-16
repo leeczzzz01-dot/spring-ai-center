@@ -14,6 +14,8 @@ public class WebConfig implements WebMvcConfigurer {
 
     @Override
     public void addInterceptors(InterceptorRegistry registry) {
-        registry.addInterceptor(tokenInterceptor);
+        registry.addInterceptor(tokenInterceptor)
+                .addPathPatterns("/**");  // 拦截所有请求
+                //.excludePathPatterns("/login", "/error"); // 可选：排除登录、错误页面等不需要校验的接口
     }
 }

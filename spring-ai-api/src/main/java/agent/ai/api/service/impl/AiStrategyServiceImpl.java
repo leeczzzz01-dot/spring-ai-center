@@ -1,6 +1,8 @@
 package agent.ai.api.service.impl;
 
+import agent.ai.api.advisor.UserInfoAdvisor;
 import agent.ai.api.service.AiStrategyService;
+import agent.ai.api.utils.ThreadContext;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.memory.ChatMemory;
 import org.springframework.ai.chat.messages.AbstractMessage;
@@ -47,10 +49,17 @@ public class AiStrategyServiceImpl implements AiStrategyService {
         if (aiClient == null) {
             throw new IllegalArgumentException("未找到对应的 AI 模型: " + modelType);
         }
+        String userInfo;
+        if (null != ThreadContext.get()){
+            userInfo =  ThreadContext.get().toString();
+        } else {
+            userInfo = "";
+        }
         // 3. 发起调用
         Flux<ChatResponse> chatResponseFlux = aiClient.prompt()
                 .user(message)
-                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, "12345"))
+                .advisors(a -> a.param(ChatMemory.CONVERSATION_ID, "12345")
+                        .param(UserInfoAdvisor.USER_INFO_KEY, userInfo))
                 .stream()
                 .chatResponse();
 
@@ -94,22 +103,6 @@ public class AiStrategyServiceImpl implements AiStrategyService {
                 .user(message)
                 .call()
                 .chatResponse();
-
-        // 2. 严谨地提取并打印 Token 信息
-        ChatResponseMetadata metadata = response.getMetadata();
-        if (metadata != null && metadata.getUsage() != null) {
-            Integer promptTokens = metadata.getUsage().getPromptTokens();
-            Integer completionTokens = metadata.getUsage().getCompletionTokens();
-            Integer totalTokens = metadata.getUsage().getTotalTokens();
-
-            System.out.println("======================================");
-            System.out.println("[" + modelName + "] 非流式调用 - 提问 Token: " + promptTokens);
-            System.out.println("[" + modelName + "] 非流式调用 - 回答 Token: " + completionTokens);
-            System.out.println("[" + modelName + "] 非流式调用 - 总计 Token: " + totalTokens);
-            System.out.println("======================================");
-        }else{
-            System.out.println("[" + modelName + "] 非流式调用 - 未携带 Token 消耗信息！");
-        }
         // 3. 提取纯文本返回给浏览器
         if (response.getResult() != null && response.getResult().getOutput() != null) {
             return response.getResult().getOutput().getText();

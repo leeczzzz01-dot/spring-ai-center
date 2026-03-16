@@ -1,5 +1,6 @@
-
 spring:
+  profiles:
+    active: dev
   ai:
     chat:
       client:
@@ -7,7 +8,7 @@ spring:
         enabled: false
     google:
       genai:
-        api-key: AIzaSyDGdXgfICtFtelVFTY-MZzQEQGOnNIx7Qs
+        api-key: AIzaSyAGhOiH3JolkDVdqgNZo5Mp_L3VijTYQ30
         chat:
           options:
             model: gemini-2.5-flash
@@ -21,7 +22,11 @@ spring:
     username: root
     password: h1.c0000
     driver-class-name: com.mysql.cj.jdbc.Driver
-
+    hikari:
+      max-lifetime: 1800000 # 30分钟
+      connection-timeout: 30000
+      validation-timeout: 5000
+      keepalive-time: 60000
 mybatis-plus:
   mapper-locations: classpath*:/mapper/**/*.xml
   configuration:
